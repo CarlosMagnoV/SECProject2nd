@@ -73,6 +73,7 @@ public class Server implements ServerInterface{
 
     public static void main(String[] args) {
 
+
         try {
             reg = new SharedMemoryRegister();
             getMyPublic();
@@ -1151,7 +1152,8 @@ public class Server implements ServerInterface{
 
         Lock lock = new ReentrantLock();
         lock.lock();
-        totalId ++;
+
+        totalId = clientList.size()+1;
         int id = totalId; // we copy global totalID to a local id to pass to the client
         addClient(pubKey,SessKey, totalId);
         lock.unlock();

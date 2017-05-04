@@ -45,6 +45,7 @@ public class SharedMemoryRegister extends Server {
         rid++;
         byte[] pass = divideMessage(message);
         writerSignature = makeServerDigitalSignature(pass);
+        readList = new ArrayList<>();
         readList.add(new ReadListReplicas(pass, wts, writerSignature, message, signature, nonce, signatureNonce, id, myRank));
         bebBroadcastRead(message, signature, nonce, signatureNonce,rid, Integer.parseInt(myPort), id);
     }
