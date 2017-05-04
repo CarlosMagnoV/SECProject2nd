@@ -1,0 +1,48 @@
+<project name="Projeto" default="compileServer" basedir=".">
+
+    <target name="cleanServer">
+        <delete dir = "ServerClasses"/>
+		<delete>
+			<fileset dir = "." includes = "**/Server.jar"/>
+		</delete>
+    </target>
+	
+	<target name="cleanClient">
+        <delete dir = "clientClasses"/>
+		<delete>
+			<fileset dir = "." includes = "**/Client.jar"/>
+		</delete>
+    </target>
+	
+
+    <target name="compileServer" depends="cleanServer">
+		<mkdir dir="ServerClasses"/>
+        <javac srcdir="src/pt/ist/sec/ServerComp" destdir="ServerClasses" includeantruntime="true">
+		</javac>
+        <jar destfile="Server.jar" basedir="ServerClasses">
+            <manifest>
+                <attribute name="Main-Class" value="pt.ist.sec.Server" />
+            </manifest>
+        </jar>
+	</target>
+	
+	<target name="compileClient" depends="cleanClient">
+		<mkdir dir="ClientClasses"/>
+        <javac srcdir="src/pt/ist/sec/Client" destdir="ClientClasses" includeantruntime="true">
+		</javac>
+        <jar destfile="Client.jar" basedir="ClientClasses">
+            <manifest>
+                <attribute name="Main-Class" value="pt.ist.sec.ClientUI" />
+            </manifest>
+        </jar>
+	</target>
+		
+
+    <target name="runServer">
+        <java jar="Server.jar" fork="true"/>
+    </target>
+	
+	<target name="runClient">
+        <java jar="Client.jar" fork="true"/>
+    </target>
+</project>
