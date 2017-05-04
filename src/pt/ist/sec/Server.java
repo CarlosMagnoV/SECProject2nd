@@ -54,6 +54,7 @@ public class Server implements ServerInterface{
     private static String certFile = System.getProperty("user.dir") + "/serverData/server.cer";
 
     public static String myPort;
+    public static int myRank;
     public static Boolean amWriter = true;
     private static String KeyStoreFile = System.getProperty("user.dir") + "/serverData/KeyStore.jks";
 
@@ -82,6 +83,7 @@ public class Server implements ServerInterface{
             String ip = InetAddress.getLocalHost().getHostAddress();
 
             myPort = args[0];
+            myRank = Integer.parseInt(args[0]);
             System.setProperty("java.rmi.server.hostname", ip);
             Registry registry = LocateRegistry.createRegistry(Integer.parseInt(args[0]));
             registry.bind(args[0], stub);
@@ -134,11 +136,11 @@ public class Server implements ServerInterface{
         System.out.println("Cliente adicionado com ID: " + Integer.parseInt(new String(clearId)));
     }
 
-    public void writeReturn(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int port, int id, byte[] writerSignature, int rid)throws Exception{
+    public void writeReturn(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int port, int id, byte[] writerSignature, int rid, int rank)throws Exception{
         amWriter = false;
         for(ClientClass c : clientList) {
             if(c.id == id) {
-                c.myReg.bebDeliverWrite(message, signature, nonce, signatureNonce, wts, port, id, writerSignature,rid);
+                c.myReg.bebDeliverWrite(message, signature, nonce, signatureNonce, wts, port, id, writerSignature,rid, rank);
             }
         }
     }
@@ -154,19 +156,20 @@ public class Server implements ServerInterface{
     public void readReturn( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int rid, int port, int id)throws Exception{
         for(ClientClass c : clientList) {
             if(c.id == id) {
-                byte[] password = getPass(message,signature,nonce,signatureNonce);
+                byte[] password = getPass(message,signature,nonce,signatureNonce, id, port);
                 Timestamp ts = getTimetamp(message,signature,nonce,signatureNonce);
                 byte[] serverSignature = getServerSignature(message);
-                c.myReg.bebDeliverRead(password,ts,rid,port,id, serverSignature,message,signature,nonce,signatureNonce);
+                int wr = getRank(message);
+                c.myReg.bebDeliverRead(password,ts,rid,port,id, serverSignature,message,signature,nonce,signatureNonce, wr);
 
             }
         }
     }
 
-    public void sendValue(int rid, int id, byte[] password, Timestamp ts,byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce)throws Exception{
+    public void sendValue(int rid, int id, byte[] password, Timestamp ts,byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int wr)throws Exception{
         for(ClientClass c : clientList) {
             if(c.id == id) {
-                c.myReg.plDeliverRead(rid, password, ts, serverSignature,message,signature,nonce,signatureNonce,id);
+                c.myReg.plDeliverRead(rid, password, ts, serverSignature,message,signature,nonce,signatureNonce,id, wr);
             }
         }
     }
@@ -317,7 +320,7 @@ public class Server implements ServerInterface{
     }
 
 
-    public void storeData(byte[] pass, String pKeyString, String domainString, String usernameString, Timestamp ts, byte[] writerSignature)throws Exception{
+    public void storeData(byte[] pass, String pKeyString, String domainString, String usernameString, Timestamp ts, byte[] writerSignature, int rank)throws Exception{
         Lock lock = new ReentrantLock();
         lock.lock();
         String elements = domainString + " " + usernameString;
@@ -345,17 +348,21 @@ public class Server implements ServerInterface{
                     if (line.equals(usernameString)) {
                         writeByteCode(pass, Integer.parseInt(br.readLine()));
                         newData = false;
+                        lines.remove(i+6);
                         lines.remove(i+5);
                         lines.remove(i+4);
                         lines.add(i+4, ts.toString());
                         lines.add(i+5, signature);
+                        lines.add(i+6, ""+rank);
                         break;
                     } else {
                         br.readLine();
                         br.readLine();
                         br.readLine();
+                        br.readLine();
                     }
                 } else {
+                    br.readLine();
                     br.readLine();
                     br.readLine();
                     br.readLine();
@@ -367,12 +374,13 @@ public class Server implements ServerInterface{
                 br.readLine();
                 br.readLine();
                 br.readLine();
+                br.readLine();
             }
-            i += 6;
+            i += 7;
         }
         if (newData) {
             Files.write(Paths.get(DataFileLoc),
-                    (pKeyString + "\n" + domainString + "\n" + usernameString + "\n" + (getLastNumber()+1) + "\n" + ts + "\n" + signature + "\n").getBytes(),
+                    (pKeyString + "\n" + domainString + "\n" + usernameString + "\n" + (getLastNumber()+1) + "\n" + ts + "\n" + signature + "\n" + rank + "\n").getBytes(),
                     StandardOpenOption.APPEND);
             writeByteCode(pass, -1);
         } else {
@@ -423,7 +431,7 @@ public class Server implements ServerInterface{
         return 1;
     }
 
-    public void savePassword(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int id, byte[] writerSignature, int port)throws Exception{
+    public void savePassword(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int id, byte[] writerSignature, int port, int rank)throws Exception{
 
         byte[] pKeyBytes = null;
         byte[] restMsg = null;
@@ -475,7 +483,7 @@ public class Server implements ServerInterface{
         String domainString = domFinal;
         String usernameString = usrFinal;
 
-        storeData(pass,pKeyString,domainString,usernameString, ts, writerSignature);
+        storeData(pass,pKeyString,domainString,usernameString, ts, writerSignature, rank);
 
 
     }
@@ -486,7 +494,7 @@ public class Server implements ServerInterface{
                 if(c.id == id) {
                     c.myReg.write(message, signature, nonce, signatureNonce, id);
                     if(portList.size() == 0){
-                        savePassword(message,signature,nonce,signatureNonce, c.myReg.wts, id, makeServerDigitalSignature(message), Integer.parseInt(myPort));
+                        savePassword(message,signature,nonce,signatureNonce, c.myReg.wts, id, makeServerDigitalSignature(message), Integer.parseInt(myPort), myRank);
                     }
                 }
             }
@@ -567,9 +575,11 @@ public class Server implements ServerInterface{
                             br.readLine();
                             br.readLine();
                             br.readLine();
+                            br.readLine();
                         }
                     }
                     else{
+                        br.readLine();
                         br.readLine();
                         br.readLine();
                         br.readLine();
@@ -582,8 +592,9 @@ public class Server implements ServerInterface{
                     br.readLine();
                     br.readLine();
                     br.readLine();
+                    br.readLine();
                 }
-                i+=6;
+                i+=7;
             }
 
         }
@@ -594,6 +605,103 @@ public class Server implements ServerInterface{
         }
 
         return null;
+    }
+
+    public int getRank(byte[]message){
+
+
+        byte[] pKeyBytes = null;
+        ClientClass client = clientList.get(0);
+        byte[] restMsg = null;
+        for(ClientClass element: clientList) {
+
+
+
+            try {
+                byte[] Bmsg = DecryptCommunication(message, element.getSessionKey());
+                pKeyBytes = copyOfRange(Bmsg,0,294); // parte da chave publica
+                restMsg = copyOfRange(Bmsg, 294, Bmsg.length); // resto dos argumentos
+                client = element;
+
+            }
+            catch(Throwable e){
+
+            }
+        }
+        if(pKeyBytes == null){return 0;}
+
+        try {
+            String dom = new String(copyOfRange(restMsg, 0, 30), "ASCII");
+            String usr = new String(copyOfRange(restMsg, 30, restMsg.length), "ASCII");
+            String domFinal = rmPadd(dom.toCharArray());
+            String usrFinal = rmPadd(usr.toCharArray());
+
+
+            String pKeyString = printBase64Binary(pKeyBytes);
+            String domainString = domFinal;
+            String usernameString = usrFinal;
+
+            //String elements = domainString+" "+usernameString;
+
+
+            File file = new File(DataFileLoc);
+            FileReader fileReader = new FileReader(file);
+            BufferedReader br = new BufferedReader(fileReader);
+            String line;
+            Path path = Paths.get(DataFileLoc);
+
+            Charset charset = Charset.forName("ISO-8859-1");
+
+            List<String> lines = Files.readAllLines(path,charset);
+
+            int i=0;
+            Boolean newData = true;
+            while((line = br.readLine()) != null){
+                if(line.equals(pKeyString)){
+                    line = br.readLine();
+                    if (line.equals(domainString)) {
+                        line = br.readLine();
+                        if (line.equals(usernameString)){
+                            line = br.readLine();
+                            line = br.readLine();
+                            line = br.readLine();
+                            line = br.readLine();
+                            return Integer.parseInt(line);
+                        }
+                        else{
+                            br.readLine();
+                            br.readLine();
+                            br.readLine();
+                            br.readLine();
+                        }
+                    }
+                    else{
+                        br.readLine();
+                        br.readLine();
+                        br.readLine();
+                        br.readLine();
+                        br.readLine();
+                    }
+                }
+                else{
+                    br.readLine();
+                    br.readLine();
+                    br.readLine();
+                    br.readLine();
+                    br.readLine();
+                    br.readLine();
+                }
+                i+=7;
+            }
+
+        }
+        catch (Exception e){
+            System.out.println("Error: Couldn't locate the file.");
+            e.printStackTrace();
+            return 0;
+        }
+
+        return 0;
     }
 
     public byte[] getServerSignature(byte[] message){
@@ -659,9 +767,11 @@ public class Server implements ServerInterface{
                             br.readLine();
                             br.readLine();
                             br.readLine();
+                            br.readLine();
                         }
                     }
                     else{
+                        br.readLine();
                         br.readLine();
                         br.readLine();
                         br.readLine();
@@ -674,8 +784,9 @@ public class Server implements ServerInterface{
                     br.readLine();
                     br.readLine();
                     br.readLine();
+                    br.readLine();
                 }
-                i+=6;
+                i+=7;
             }
 
         }
@@ -704,6 +815,7 @@ public class Server implements ServerInterface{
                     line = br.readLine();
                 }
                 number = Integer.parseInt(br.readLine());
+                br.readLine();
                 br.readLine();
                 br.readLine();
             }
@@ -878,7 +990,7 @@ public class Server implements ServerInterface{
 
         byte[] password = null;
         if(portList.size() == 0) { // Se não houver replicas, lemos do ficheiro
-            password = getPass(message, signature, nonce, signatureNonce);
+            password = getPass(message, signature, nonce, signatureNonce, id, Integer.parseInt(myPort));
         }else{
             for(ClientClass c : clientList) {
                 if(c.id == id) {
@@ -915,7 +1027,7 @@ public class Server implements ServerInterface{
         return copyOfRange(restMsg, 60, restMsg.length);
     }
 
-    public byte[] getPass( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce){
+    public byte[] getPass( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id, int port){
 
         byte[] pKeyBytes = null;
         ClientClass client = clientList.get(0);
@@ -950,9 +1062,10 @@ public class Server implements ServerInterface{
 
             storageSignture(client, signature);
 
-        if(!client.checkNonce(Timestamp.valueOf(new String(decryptNonce, "ASCII")))){
-            return null;
-        }
+        if(reg.getReplica(port).getReadingBool(id))
+            if(!client.checkNonce(Timestamp.valueOf(new String(decryptNonce, "ASCII")))){
+                return null;
+            }
 
         }
         catch(Exception e){
@@ -999,9 +1112,11 @@ public class Server implements ServerInterface{
                             br.readLine();
                             br.readLine();
                             br.readLine();
+                            br.readLine();
                         }
                     }
                     else{
+                        br.readLine();
                         br.readLine();
                         br.readLine();
                         br.readLine();
@@ -1014,8 +1129,9 @@ public class Server implements ServerInterface{
                     br.readLine();
                     br.readLine();
                     br.readLine();
+                    br.readLine();
                 }
-                i+=6;
+                i+=7;
             }
 
         }

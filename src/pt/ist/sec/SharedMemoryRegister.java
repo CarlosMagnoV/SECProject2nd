@@ -36,6 +36,7 @@ public class SharedMemoryRegister extends Server {
         value = null;
         writerSignature = null;
         reading = false;
+
     }
 
     public void write(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id) throws Exception {
@@ -44,30 +45,31 @@ public class SharedMemoryRegister extends Server {
         rid++;
         byte[] pass = divideMessage(message);
         writerSignature = makeServerDigitalSignature(pass);
-        bebBroadcastWrite(message, signature, nonce, signatureNonce, wts , id, writerSignature);
+        readList.add(new ReadListReplicas(pass, wts, writerSignature, message, signature, nonce, signatureNonce, id, myRank));
+        bebBroadcastRead(message, signature, nonce, signatureNonce,rid, Integer.parseInt(myPort), id);
     }
 
-    public void bebBroadcastWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int id, byte[] writerSignature){
+    public void bebBroadcastWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int id, byte[] writerSignature, int rank){
         try{
             for (int p : portList) {
-                getReplica(p).writeReturn(message, signature, nonce, signatureNonce, wts, Integer.parseInt(super.myPort), id, writerSignature, rid);
+                getReplica(p).writeReturn(message, signature, nonce, signatureNonce, wts, Integer.parseInt(super.myPort), id, writerSignature, rid, rank);
             }
         }catch (Exception e){
             e.printStackTrace();
         }
     }
 
-    public void bebDeliverWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int port, int id, byte[] writerSignature, int rid)throws Exception{
+    public void bebDeliverWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int port, int id, byte[] writerSignature, int rid, int rank)throws Exception{
         Lock lock = new ReentrantLock();
         lock.lock();
         if(getTimetamp(message,signature,nonce,signatureNonce) != null) {
-            if (ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
-                savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port);
+            if (ts.after(getTimetamp(message, signature, nonce, signatureNonce)) || (ts.equals(getTimetamp(message, signature, nonce, signatureNonce)) && getRank(message) > rank)) {
+                savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port, rank);
             }
             sendAck(message, signature, nonce, signatureNonce, ts, port, id,rid);
         }
         else{
-            savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port);
+            savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port, rank);
             sendAck(message, signature, nonce, signatureNonce, ts, port, id,rid);
         }
         lock.unlock();
@@ -91,7 +93,7 @@ public class SharedMemoryRegister extends Server {
                 if (reading) {
                     reading = false;
                 } else {
-                    savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port);
+                    //savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port, myRank);
                     writerSignature = null;
                 }
             }
@@ -106,12 +108,12 @@ public class SharedMemoryRegister extends Server {
         reading=true;
         readList = new ArrayList<>();
         value = null;
-        byte[]readerPassword = getPass(message,signature,nonce,signatureNonce); //Para adicionar o seu valor da password na readlist para efeitos de posterior comparação
+        byte[]readerPassword = getPass(message,signature,nonce,signatureNonce, id, port); //Para adicionar o seu valor da password na readlist para efeitos de posterior comparação
         Timestamp ts = getTimetamp(message,signature,nonce,signatureNonce);
         writerSignature = getServerSignature(message);
 
         byte[] serverSignature = getServerSignature(message);
-        ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id);
+        ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id, Integer.parseInt(myPort));
         readList.add(value);
         bebBroadcastRead(message, signature, nonce, signatureNonce,rid, port, id);
     }
@@ -126,47 +128,81 @@ public class SharedMemoryRegister extends Server {
         }
     }
 
-    public void bebDeliverRead( byte[] password, Timestamp ts, int rid, int port, int id, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce)throws Exception{
+    public void bebDeliverRead( byte[] password, Timestamp ts, int rid, int port, int id, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int wr)throws Exception{
 
-        getReplica(port).sendValue(rid, id, password, ts, serverSignature,message,signature,nonce,signatureNonce);
+        getReplica(port).sendValue(rid, id, password, ts, serverSignature,message,signature,nonce,signatureNonce,wr);
     }
 
-    public void plDeliverRead(int rid, byte[] password, Timestamp ts, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id)throws Exception{
+    public void plDeliverRead(int rid, byte[] password, Timestamp ts, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id, int wr)throws Exception{
         if(this.rid == rid) {
             boolean sign = false;
+            boolean equalSign = false;
             try {
-                sign = verifyServerDigitalSignature(serverSignature, password);
+                if(reading){
+                    sign = verifyServerDigitalSignature(serverSignature, password);
+                    equalSign = printBase64Binary(serverSignature).equals(printBase64Binary(readList.get(0).serverSignature));
+                }
+                else{sign = true; equalSign = true;}
             }
             catch (Exception e){
-                return;
+                reading = false;
+                return;  //Caso seja escrita, não existe ainda assinatura
             }
-            if (sign) {
-                if (printBase64Binary(serverSignature).equals(printBase64Binary(readList.get(0).serverSignature))) {
+            if (sign){
+                if (equalSign || !reading) {
                     Lock lock = new ReentrantLock();
                     lock.lock();
-                    ReadListReplicas newValue = new ReadListReplicas(password, ts, serverSignature,message,signature,nonce,signatureNonce,id);
+                    ReadListReplicas newValue = new ReadListReplicas(password, ts, serverSignature,message,signature,nonce,signatureNonce,id,wr);
                     readList.add(newValue);
                     lock.unlock();
                     if (readList.size() > Math.ceil((int) (portList.size() + 1) / 2)) {
+
                         Timestamp currentTs = readList.get(0).ts;
+                        int rank = readList.get(0).rank;
                         int index = 0;
                         int indexMax = 0;
                         for (ReadListReplicas auxVal : readList) {
-                            if (currentTs.before(auxVal.ts)) {
-                                currentTs = auxVal.ts;
-                                indexMax = index;
+                            try {
+                                if (currentTs.equals(auxVal.ts) && rank >= auxVal.rank) {
+                                    currentTs = auxVal.ts;
+                                    rank = auxVal.rank;
+                                    indexMax = index;
+                                } else if (currentTs.before(auxVal.ts)) {
+                                    currentTs = auxVal.ts;
+                                    rank = auxVal.rank;
+                                    indexMax = index;
+                                }
+
                             }
+                            catch(Exception e){}
                             index++;
                         }
                         this.value = readList.get(indexMax);
-
-                        if(getTimetamp(message,signature,nonce,signatureNonce) != null) {
-                            if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
-                                savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort));
-                            }
-                        }
-                        bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts , this.value.id, this.value.serverSignature);
                         readList = new ArrayList<>();
+
+                        if(reading) {
+                            if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
+                                if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
+                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
+                                }
+                                else if(value.ts.equals(getTimetamp(message, signature, nonce, signatureNonce)) && value.rank < myRank){
+                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
+                                }
+                            }
+                            bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, this.value.rank);
+                        }
+                        else{
+                            Timestamp newTs = new Timestamp(System.currentTimeMillis());
+                            if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
+                                if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
+                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);
+                                }
+                            }
+                            else{savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);}
+                            bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs , this.value.id, this.value.serverSignature, myRank);
+
+                        }
+
                     }
                 }
             }
