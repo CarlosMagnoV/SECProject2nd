@@ -113,7 +113,7 @@ public class SharedMemoryRegister extends Server {
         writerSignature = getServerSignature(message);
 
         byte[] serverSignature = getServerSignature(message);
-        ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id, Integer.parseInt(myPort));
+        ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id, getRank(message));
         readList.add(value);
         bebBroadcastRead(message, signature, nonce, signatureNonce,rid, port, id);
     }
