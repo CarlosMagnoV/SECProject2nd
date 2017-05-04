@@ -65,7 +65,7 @@ public class Server implements ServerInterface{
     public static ArrayList<Integer> portList = new ArrayList<>();
     public static SharedMemoryRegister reg;
     private static ServerInterface server;
-    public static int totalId = 0; //TODO propagar pelas replicas
+    public static int totalId = 0; 
 
     public Server(){
 
