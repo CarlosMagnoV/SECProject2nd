@@ -1170,7 +1170,15 @@ public class Server implements ServerInterface{
                         line = br.readLine();
                         if (line.equals(usernameString)){
                             line = br.readLine();
-                            return readByteCode(Integer.parseInt(line));
+                            if(myByzantine != 4 || !getReadingBool(id)) {
+                                return readByteCode(Integer.parseInt(line));
+                            }
+                            else if(myByzantine == 4 && getReadingBool(id)){
+                                SecureRandom rd = new SecureRandom();
+                                byte[] rand = new byte[16];
+                                rd.nextBytes(rand);
+                                return rand;
+                            }
                         }
                         else{
                             br.readLine();

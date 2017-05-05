@@ -223,6 +223,9 @@ public class SharedMemoryRegister extends Server {
             if(myByzantine == 2){
                 System.out.println("I'm getting 1 as rank (highest possible) from the file.");
             }
+            if(myByzantine == 4){
+                System.out.println("I'm getting weird password values from the file.");
+            }
             getReplica(port).sendValue(rid, id, password, ts, serverSignature, message, signature, nonce, signatureNonce, wr);
         } catch (Exception e){}
     }
