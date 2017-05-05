@@ -177,7 +177,7 @@ public class Server implements ServerInterface{
                 byte[] password = getPass(message,signature,nonce,signatureNonce, id, port);
                 Timestamp ts = getTimetamp(message,signature,nonce,signatureNonce);
                 byte[] serverSignature = getServerSignature(message);
-                int wr = getRank(message);
+                int wr = getRank(message, id);
                 c.myReg.bebDeliverRead(password,ts,rid,port,id, serverSignature,message,signature,nonce,signatureNonce, wr);
 
             }
@@ -645,7 +645,7 @@ public class Server implements ServerInterface{
     }
 
     //Gets the rank from the file (to break ties)
-    public int getRank(byte[]message){
+    public int getRank(byte[]message, int id){
 
 
         byte[] pKeyBytes = null;
@@ -704,7 +704,12 @@ public class Server implements ServerInterface{
                             line = br.readLine();
                             line = br.readLine();
                             line = br.readLine();
-                            return Integer.parseInt(line);
+                            if(myByzantine!=2) {
+                                return Integer.parseInt(line);
+                            }
+                            else if(myByzantine == 2 && getReadingBool(id)){
+                                return 1;
+                            }
                         }
                         else{
                             br.readLine();

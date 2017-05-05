@@ -123,7 +123,7 @@ public class SharedMemoryRegister extends Server {
         Lock lock = new ReentrantLock();
         lock.lock();
         if(getTimetamp(message,signature,nonce,signatureNonce) != null) {
-            if (ts.after(getTimetamp(message, signature, nonce, signatureNonce)) || (ts.equals(getTimetamp(message, signature, nonce, signatureNonce)) && getRank(message) > rank) || getTimetamp(message, signature, nonce, signatureNonce).after(new Timestamp(System.currentTimeMillis()))) {
+            if (ts.after(getTimetamp(message, signature, nonce, signatureNonce)) || ts.equals(getTimetamp(message, signature, nonce, signatureNonce))) {
                 savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port, rank);
             }
             sendAck(message, signature, nonce, signatureNonce, ts, port, id,rid);
@@ -178,7 +178,7 @@ public class SharedMemoryRegister extends Server {
         Timestamp ts = getTimetamp(message,signature,nonce,signatureNonce);
         writerSignature = getServerSignature(message);
         byte[] serverSignature = getServerSignature(message);
-        ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id, getRank(message));
+        ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id, getRank(message, id));
         readList.add(value);//puts itself in the readlist, to simulate broadcast to itself
 
         bebBroadcastRead(message, signature, nonce, signatureNonce,rid, port, id); //broadcasts to all other replicas
@@ -219,6 +219,9 @@ public class SharedMemoryRegister extends Server {
         try {
             if(myByzantine == 1) {
                 System.out.println("I'm getting 2020-05-05 03:33:12.738 as timestamp from the file.");
+            }
+            if(myByzantine == 2){
+                System.out.println("I'm getting 1 as rank (highest possible) from the file.");
             }
             getReplica(port).sendValue(rid, id, password, ts, serverSignature, message, signature, nonce, signatureNonce, wr);
         } catch (Exception e){}
@@ -289,15 +292,25 @@ public class SharedMemoryRegister extends Server {
                             index++;
                         }
 
-                        try {
-                            if ((currentTs.equals(writeValue.ts) && rank >= writeValue.rank) || currentTs.before(writeValue.ts)) {
-                                this.value = writeValue;
-                            } else {
-                                this.value = readList.get(indexMax);
-                            }
+                        if(!reading) {
 
+                            try {
+                                if ((currentTs.equals(writeValue.ts) && rank >= writeValue.rank) || currentTs.before(writeValue.ts)) {
+                                    this.value = writeValue;
+                                    writeValue = null;
+                                } else {
+                                    this.value = readList.get(indexMax);
+                                    writeValue = null;
+                                }
+
+                            } catch (Exception e) {
+                                this.value = writeValue;
+                                writeValue = null;
+                            }
                         }
-                        catch(Exception e){this.value = writeValue;}
+                        else{
+                            this.value = readList.get(indexMax);
+                        }
 
 
                         readList = new ArrayList<>();
