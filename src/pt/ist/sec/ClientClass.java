@@ -70,7 +70,7 @@ public class ClientClass extends Server {
                 setNonce(nonce);
                 return true;
             }
-            else{System.out.println("Wrong nonce. Our Nonce=" + this.nonce + " ; Checking=" + nonce);}
+
         }
         catch(Exception e){
             e.printStackTrace();

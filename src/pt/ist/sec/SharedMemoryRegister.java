@@ -37,6 +37,7 @@ public class SharedMemoryRegister extends Server {
     private int cId;
     private boolean registerFlag = false;
     private int count=0;
+    private ReadListReplicas writeValue;
 
     public SharedMemoryRegister() {
 
@@ -55,11 +56,12 @@ public class SharedMemoryRegister extends Server {
     //This method is called when a client invokes a send password operation (writes register)
     public void write(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id) throws Exception {
         //Byzantine test 1, high timestamp, from 2020
-        if(myByzantine!=1) {
+        if(myByzantine !=1) {
             wts = new Timestamp(System.currentTimeMillis());
         }
         else{
             wts = Timestamp.valueOf("2020-05-05 03:33:12.738");
+
         }
         acks = 1;
         rid++;
@@ -68,8 +70,27 @@ public class SharedMemoryRegister extends Server {
         writerSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
         readList = new ArrayList<>();
 
-        if(wts.before(new Timestamp(System.currentTimeMillis())) || wts.equals(new Timestamp(System.currentTimeMillis()))) {
-            readList.add(new ReadListReplicas(pass, wts, writerSignature, message, signature, nonce, signatureNonce, id, myRank));//puts itself in the readlist, to simulate broadcast to itself
+        writeValue = new ReadListReplicas(pass, wts, writerSignature, message, signature, nonce, signatureNonce, id, myRank);
+
+        //Adds own file information to the list, acting as a broadcast received message
+        byte[] filePass = getPass(message, signature, nonce, signatureNonce, id, Integer.parseInt(myPort));
+        Timestamp ts = getTimetamp(message, signature, nonce, signatureNonce);
+        byte[] fileSign = getServerSignature(message);
+
+        boolean sign = false;
+        boolean equalSign = false;
+        try {
+            byte[] fileSignedPassTsRank = concatenateBytes(filePass, ("" + ts).getBytes(), ("" + myRank).getBytes());
+            sign = verifyServerDigitalSignature(fileSign, fileSignedPassTsRank);
+            equalSign = printBase64Binary(fileSign).equals(printBase64Binary(readList.get(0).serverSignature));
+        }
+        catch(Exception e){
+            if(filePass != null && ts != null && fileSign != null){
+                sign = true; equalSign = true;
+            }
+        }
+        if(sign && equalSign) {
+            readList.add(new ReadListReplicas(filePass, ts, fileSign, message, signature, nonce, signatureNonce, id, myRank));//puts itself in the readlist, to simulate broadcast to itself
         }
 
         bebBroadcastRead(message, signature, nonce, signatureNonce,rid, Integer.parseInt(myPort), id); //broadcast read operation to all other replicas
@@ -185,6 +206,9 @@ public class SharedMemoryRegister extends Server {
     public void bebDeliverRead( byte[] password, Timestamp ts, int rid, int port, int id, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int wr)throws Exception{
 
         try {
+            if(myByzantine == 1) {
+                System.out.println("I'm getting 2020-05-05 03:33:12.738 as timestamp from the file.");
+            }
             getReplica(port).sendValue(rid, id, password, ts, serverSignature, message, signature, nonce, signatureNonce, wr);
         } catch (Exception e){}
     }
@@ -194,7 +218,6 @@ public class SharedMemoryRegister extends Server {
         if(this.rid == rid) {
             boolean sign = false;
             boolean equalSign = false;
-            boolean possibleTs = false;
             try {
 
 
@@ -203,22 +226,25 @@ public class SharedMemoryRegister extends Server {
                     byte[] signedPassTsRank = concatenateBytes(password, (""+ts).getBytes(), (""+wr).getBytes());
                     sign = verifyServerDigitalSignature(serverSignature, signedPassTsRank);
                     equalSign = printBase64Binary(serverSignature).equals(printBase64Binary(readList.get(0).serverSignature));
-                    possibleTs = ts.before(new Timestamp(System.currentTimeMillis()));
                 }
                 else{
-                    sign = true;
-                    equalSign = true;
-                    if(ts != null){
-                        possibleTs = ts.before(new Timestamp(System.currentTimeMillis()));
+                    if(password != null && ts != null && serverSignature != null && wr != 0){
+                        byte[] signedPassTsRank = concatenateBytes(password, (""+ts).getBytes(), (""+wr).getBytes());
+                        sign = verifyServerDigitalSignature(serverSignature, signedPassTsRank);
+                        equalSign = printBase64Binary(serverSignature).equals(printBase64Binary(readList.get(0).serverSignature));
                     }
-                    else{possibleTs = true;}
+                    else{
+                        sign = true;
+                        equalSign = true;
+                    }
+
                 }
             }
             catch (Exception e){
                 reading = false;
                 return;
             }
-            if (sign && possibleTs){
+            if (sign){
                 if (equalSign || !reading) {
                     Lock lock = new ReentrantLock();
                     lock.lock();
@@ -251,34 +277,41 @@ public class SharedMemoryRegister extends Server {
                             catch(Exception e){}
                             index++;
                         }
-                        this.value = readList.get(indexMax);
+
+                        try {
+                            if ((currentTs.equals(writeValue.ts) && rank >= writeValue.rank) || currentTs.before(writeValue.ts)) {
+                                this.value = writeValue;
+                            } else {
+                                this.value = readList.get(indexMax);
+                            }
+
+                        }
+                        catch(Exception e){this.value = writeValue;}
+
+
                         readList = new ArrayList<>();
                         lock.unlock();
-
-                        //Saves the highest values while reading, according to the atomic algorithm
-                        if(reading) {
-                            if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
-                                savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
+                        try {
+                            //Saves the highest values while reading, according to the atomic algorithm
+                            if (reading) {
+                                if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
+                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
+                                }
+                                bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, this.value.rank);
                             }
-                            bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, this.value.rank);
+
+                            //Simply writes the values in every replica
+                            else {
+
+                                savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);
+                                bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, myRank);
+
+                            }
+                            readingSemaphore.release();   //Unlocks the main thread, since values are already avaliable to be retrieved
                         }
-
-                        //Simply writes the values in every replica
-                        else{
-
-                            //Defines the signature
-                            Timestamp newTs = new Timestamp(System.currentTimeMillis());
-                            byte[] pass = divideMessage(message); //gets the password from the message
-                            byte[] signedPassTsRank = concatenateBytes(pass, ("" + newTs).getBytes(), ("" + myRank).getBytes());    //Join pass, timestamp and rank for signing
-                            this.value.serverSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
-                            writerSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
-
-
-                            savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);
-                            bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs , this.value.id, this.value.serverSignature, myRank);
-
+                        catch (Exception e){
+                            readingSemaphore.release();
                         }
-                        readingSemaphore.release();   //Unlocks the main thread, since values are already avaliable to be retrieved
 
                     }
                 }
