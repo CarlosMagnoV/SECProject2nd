@@ -14,24 +14,20 @@ public class ClientUI {
     private JButton exitButton;
     private JButton sendPasswordButton;
     private JPanel panelMain;
-    private static  JFrame frame = new JFrame("ClientUI");
+    public static  JFrame frame = new JFrame("ClientUI");
     private static String clientKS = System.getProperty("user.dir") + "\\clientData\\KeyStore.jks";
+    Lib lib = null;
     //private static String certFile = System.getProperty("user.dir") + "\\clientData\\KeyStore.jce";
 
 
-    public ClientUI(String port)throws Exception {
-        final Lib lib = new Lib(Integer.parseInt(port));
-        try {
-            loadStore(lib);
-        }catch (Exception e){
-            frame.setVisible(false);
-            final JFrame frame0 = new JFrame("ErrorMessage");
-            frame0.setContentPane(new ErrorMessage("Could not connect to server!", frame0).panel1
-            );
-            frame0.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame0.pack();
-            frame0.setVisible(true);
-        }
+    public ClientUI()throws Exception {
+
+
+        final JFrame frame10 = new JFrame("Port");
+        frame10.setContentPane(new Port(frame10, this).mainPanel);
+        frame10.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame10.pack();
+        frame10.setVisible(true);
 
         retrievePasswordsButton.addActionListener(new ActionListener() {
             @Override
@@ -66,13 +62,16 @@ public class ClientUI {
     public static void main(String[] args)throws Exception
     {
         //getFrame = frame;
-        frame.setContentPane(new ClientUI(args[0]).panelMain);
+        frame.setContentPane(new ClientUI().panelMain);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
-        frame.setVisible(true);
+        frame.setVisible(false);
     }
 
-    private void loadStore(Lib lib) throws Exception {
+    public void loadStore(int port) throws Exception {
+
+        lib = new Lib(port);
+
         FileInputStream fis = new FileInputStream(clientKS);
         //KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
         KeyStore keystore = KeyStore.getInstance("JKS");

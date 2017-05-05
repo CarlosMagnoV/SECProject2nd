@@ -522,10 +522,11 @@ public class Server implements ServerInterface{
 
             for(ClientClass c : clientList) {
                 if(c.id == id) {
-                    c.myReg.write(message, signature, nonce, signatureNonce, id);
                     if(portList.size() == 0){ //in case we only have one server we do not need to call the register
-                        savePassword(message,signature,nonce,signatureNonce, c.myReg.wts, id, makeServerDigitalSignature(message), Integer.parseInt(myPort), myRank);
+                        savePassword(message,signature,nonce,signatureNonce, new Timestamp(System.currentTimeMillis()), id, makeServerDigitalSignature(message), Integer.parseInt(myPort), myRank);
+                        return;
                     }
+                    c.myReg.write(message, signature, nonce, signatureNonce, id);
                 }
             }
 
