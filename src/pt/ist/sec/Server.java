@@ -79,6 +79,9 @@ public class Server implements ServerInterface{
             myByzantine = Integer.parseInt(args[0]);
             if(myByzantine > 0) {
                 System.out.println("I'm byzantine type " + myByzantine);
+                if(myByzantine == 3){
+                    System.out.println("After calling a write or read operation, i will crash!");
+                }
             }
             reg = new SharedMemoryRegister();
             getMyPublic();
@@ -109,7 +112,7 @@ public class Server implements ServerInterface{
             System.err.println("Server ready. Connected in: " + ip + ":" + args[1]);
         } catch (Exception e) {
             //e.printStackTrace();
-            System.err.println("Couldn't connect to server. Please, restart the client.");
+            System.err.println("Couldn't connect to server. Please, restart.");
             System.out.println("Sugestion: try another server.");
         }
 

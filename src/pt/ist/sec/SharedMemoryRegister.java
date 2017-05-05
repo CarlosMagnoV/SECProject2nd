@@ -61,7 +61,10 @@ public class SharedMemoryRegister extends Server {
         }
         else{
             wts = Timestamp.valueOf("2020-05-05 03:33:12.738");
+        }
 
+        if(myByzantine == 3){
+            System.exit(0);
         }
         acks = 1;
         rid++;
@@ -78,18 +81,16 @@ public class SharedMemoryRegister extends Server {
         byte[] fileSign = getServerSignature(message);
 
         boolean sign = false;
-        boolean equalSign = false;
         try {
             byte[] fileSignedPassTsRank = concatenateBytes(filePass, ("" + ts).getBytes(), ("" + myRank).getBytes());
             sign = verifyServerDigitalSignature(fileSign, fileSignedPassTsRank);
-            equalSign = printBase64Binary(fileSign).equals(printBase64Binary(readList.get(0).serverSignature));
         }
         catch(Exception e){
-            if(filePass != null && ts != null && fileSign != null){
-                sign = true; equalSign = true;
+            if(filePass == null && ts == null && fileSign == null){
+                sign = true;
             }
         }
-        if(sign && equalSign) {
+        if(sign) {
             readList.add(new ReadListReplicas(filePass, ts, fileSign, message, signature, nonce, signatureNonce, id, myRank));//puts itself in the readlist, to simulate broadcast to itself
         }
 
@@ -97,8 +98,9 @@ public class SharedMemoryRegister extends Server {
     }
     //This method broadcasts write asynchronously to all other replicas
     public void bebBroadcastWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int id, byte[] writerSignature, int rank){
-        try{
-            for (int p : portList) {
+        for (int p : portList) {
+            try{
+
                 Runnable task = () -> {
                     try {
                         getReplica(p).writeReturn(message, signature, nonce, signatureNonce, wts, Integer.parseInt(super.myPort), id, writerSignature, rid, rank);
@@ -110,12 +112,14 @@ public class SharedMemoryRegister extends Server {
             thread.start();
 
             }
-        }catch (Exception e){
-            //e.printStackTrace();
+            catch (Exception e){
+                //e.printStackTrace();
+            }
         }
     }
     //This method writes in the replicas file and sends ack to the writer/reader
     public void bebDeliverWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int port, int id, byte[] writerSignature, int rid, int rank)throws Exception{
+
         Lock lock = new ReentrantLock();
         lock.lock();
         if(getTimetamp(message,signature,nonce,signatureNonce) != null) {
@@ -160,6 +164,9 @@ public class SharedMemoryRegister extends Server {
     }
     //This method is invoked when a client tries to retrieve a password (reads register)
     public void read( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int port, int id){
+        if(myByzantine == 3){
+            System.exit(0);
+        }
         rid++;
         acks=1;
         reading=true;
@@ -179,32 +186,36 @@ public class SharedMemoryRegister extends Server {
 
     //This method broadcasts read asynchronously to all other replicas
     public void bebBroadcastRead( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int rid, int port, int id){
-        try{
-            for (int p : portList) {
+
+
+        for (int p : portList) {
+
+            try {
                 Runnable task = () -> {
                     try {
                         getReplica(p).readReturn(message, signature, nonce, signatureNonce, rid, port, id);
-                    } catch (Exception e) {
-                    }
-                    count++;
+                    } catch (Exception e) {}
                 };
 
                 Thread thread = new Thread(task);
                 thread.start();
             }
-
-                readingSemaphore.acquire();
-
-
-
-
-        }catch (Exception e){
-           // e.printStackTrace();
+            catch (Exception e){
+            // e.printStackTrace();
+            }
         }
+
+        try {
+            readingSemaphore.acquire();
+        }
+        catch (Exception e){}
+
     }
     //Sends each replicas value (in the file) to the reader
     public void bebDeliverRead( byte[] password, Timestamp ts, int rid, int port, int id, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int wr)throws Exception{
-
+        if(myByzantine == 3){
+            System.exit(0);
+        }
         try {
             if(myByzantine == 1) {
                 System.out.println("I'm getting 2020-05-05 03:33:12.738 as timestamp from the file.");
