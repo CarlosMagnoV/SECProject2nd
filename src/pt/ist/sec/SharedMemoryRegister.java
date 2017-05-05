@@ -98,7 +98,7 @@ public class SharedMemoryRegister extends Server {
         Lock lock = new ReentrantLock();
         lock.lock();
         if(getTimetamp(message,signature,nonce,signatureNonce) != null) {
-            if (ts.after(getTimetamp(message, signature, nonce, signatureNonce)) || (ts.equals(getTimetamp(message, signature, nonce, signatureNonce)) && getRank(message) > rank)) {
+            if (ts.after(getTimetamp(message, signature, nonce, signatureNonce)) || (ts.equals(getTimetamp(message, signature, nonce, signatureNonce)) && getRank(message) > rank) || getTimetamp(message, signature, nonce, signatureNonce).after(new Timestamp(System.currentTimeMillis()))) {
                 savePassword(message, signature, nonce, signatureNonce, ts, id, writerSignature, port, rank);
             }
             sendAck(message, signature, nonce, signatureNonce, ts, port, id,rid);
@@ -254,18 +254,15 @@ public class SharedMemoryRegister extends Server {
                         this.value = readList.get(indexMax);
                         readList = new ArrayList<>();
                         lock.unlock();
+
                         //Saves the highest values while reading, according to the atomic algorithm
                         if(reading) {
                             if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
-                                if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
-                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
-                                }
-                                else if(value.ts.equals(getTimetamp(message, signature, nonce, signatureNonce)) && value.rank < myRank){
-                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
-                                }
+                                savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), this.value.rank);
                             }
                             bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, this.value.rank);
                         }
+
                         //Simply writes the values in every replica
                         else{
 
@@ -277,16 +274,12 @@ public class SharedMemoryRegister extends Server {
                             writerSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
 
 
-                            if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
-                                if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
-                                    savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);
-                                }
-                            }
-                            else{savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);}
+                            savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);
                             bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs , this.value.id, this.value.serverSignature, myRank);
 
                         }
                         readingSemaphore.release();   //Unlocks the main thread, since values are already avaliable to be retrieved
+
                     }
                 }
             }
@@ -358,7 +351,6 @@ public class SharedMemoryRegister extends Server {
         regACK++;
         if (regACK > Math.ceil((int) (portList.size() + 1) / 2)) {
             regACK = 0;
-            System.out.println("unlocked reg");
             registerSemaphore.release();// we have a sufficient number of acks so we release the main thread
         }
     }
