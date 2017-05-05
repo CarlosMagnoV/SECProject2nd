@@ -58,8 +58,8 @@ public class Lib implements ClientInterface{
             System.out.println("connecting . . .");
 
             Registry registry = null;
-             String ip = InetAddress.getLocalHost().getHostAddress();
-                registry = LocateRegistry.getRegistry(ip,port);
+             //String ip = InetAddress.getLocalHost().getHostAddress();
+                registry = LocateRegistry.getRegistry(port);
 
                 //registry = LocateRegistry.getRegistry(1000);
 

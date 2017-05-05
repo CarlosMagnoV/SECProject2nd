@@ -31,20 +31,32 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="375">
-      <file leaf-file-name="Server.java" pinned="false" current-in-tab="false">
+      <file leaf-file-name="Server.java" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/Server.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="512">
-              <caret line="1179" column="44" lean-forward="false" selection-start-line="1179" selection-start-column="44" selection-end-line="1179" selection-end-column="44" />
+            <state relative-caret-position="177">
+              <caret line="111" column="59" lean-forward="false" selection-start-line="111" selection-start-column="59" selection-end-line="111" selection-end-column="59" />
               <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="SharedMemoryRegister.java" pinned="false" current-in-tab="true">
+      <file leaf-file-name="Lib.java" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/Lib.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="294">
+              <caret line="61" column="17" lean-forward="true" selection-start-line="61" selection-start-column="17" selection-end-line="61" selection-end-column="17" />
+              <folding>
+                <marker date="1493989558908" expanded="true" signature="5869:5999" ph="{...}" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="SharedMemoryRegister.java" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/SharedMemoryRegister.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-1693">
+            <state relative-caret-position="4410">
               <caret line="225" column="26" lean-forward="false" selection-start-line="225" selection-start-column="15" selection-end-line="225" selection-end-column="26" />
               <folding />
             </state>
@@ -64,7 +76,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>deli</find>
       <find>makeSer</find>
       <find>regA</find>
       <find>stack</find>
@@ -94,6 +105,7 @@
       <find>getRank</find>
       <find>put</find>
       <find>getPass</find>
+      <find>ip</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -129,13 +141,13 @@
         <option value="$PROJECT_DIR$/src/pt/ist/sec/ClientInterface.java" />
         <option value="$PROJECT_DIR$/src/pt/ist/sec/ErrorMessage.java" />
         <option value="$PROJECT_DIR$/data/storage.txt" />
-        <option value="$PROJECT_DIR$/src/pt/ist/sec/Lib.java" />
         <option value="$PROJECT_DIR$/src/pt/ist/sec/ClientClass.java" />
         <option value="$PROJECT_DIR$/src/pt/ist/sec/Port.form" />
         <option value="$PROJECT_DIR$/src/pt/ist/sec/Port.java" />
         <option value="$PROJECT_DIR$/src/pt/ist/sec/ClientUI.java" />
-        <option value="$PROJECT_DIR$/src/pt/ist/sec/Server.java" />
         <option value="$PROJECT_DIR$/src/pt/ist/sec/SharedMemoryRegister.java" />
+        <option value="$PROJECT_DIR$/src/pt/ist/sec/Lib.java" />
+        <option value="$PROJECT_DIR$/src/pt/ist/sec/Server.java" />
       </list>
     </option>
   </component>
@@ -167,6 +179,7 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
+      <pane id="PackagesPane" />
       <pane id="ProjectPane">
         <subPane>
           <PATH>
@@ -213,9 +226,8 @@
           </PATH>
         </subPane>
       </pane>
-      <pane id="PackagesPane" />
-      <pane id="Scratches" />
       <pane id="Scope" />
+      <pane id="Scratches" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -541,7 +553,7 @@
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32919255" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
       <window_info id="Capture Tool" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Designer" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.21804512" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.2244898" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.24962178" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
       <window_info id="UI Designer" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
@@ -661,13 +673,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/data/byteFile">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$PROJECT_DIR$/data/byteFile" />
     <entry file="jar://C:/Program Files/Java/jdk1.8.0_111/jre/lib/rt.jar!/sun/misc/Unsafe.class" />
     <entry file="jar://C:/Program Files/Java/jdk1.8.0_121/src.zip!/java/lang/Runnable.java">
       <provider selected="true" editor-type-id="text-editor">
@@ -683,13 +689,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/data/storage.txt">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$PROJECT_DIR$/data/storage.txt" />
     <entry file="jar://C:/Program Files/Java/jdk1.8.0_121/src.zip!/java/net/DualStackPlainSocketImpl.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="318">
@@ -746,7 +746,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="562">
           <caret line="93" column="23" lean-forward="false" selection-start-line="93" selection-start-column="23" selection-end-line="93" selection-end-column="23" />
-          <folding />
         </state>
       </provider>
     </entry>
@@ -766,28 +765,28 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/SharedMemoryRegister.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4410">
+          <caret line="225" column="26" lean-forward="false" selection-start-line="225" selection-start-column="15" selection-end-line="225" selection-end-column="26" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/Lib.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-4050">
-          <caret line="211" column="70" lean-forward="false" selection-start-line="211" selection-start-column="70" selection-end-line="211" selection-end-column="70" />
+        <state relative-caret-position="294">
+          <caret line="61" column="17" lean-forward="true" selection-start-line="61" selection-start-column="17" selection-end-line="61" selection-end-column="17" />
           <folding>
-            <marker date="1493956733690" expanded="true" signature="5870:6000" ph="{...}" />
+            <marker date="1493989558908" expanded="true" signature="5869:5999" ph="{...}" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/Server.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="512">
-          <caret line="1179" column="44" lean-forward="false" selection-start-line="1179" selection-start-column="44" selection-end-line="1179" selection-end-column="44" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/pt/ist/sec/SharedMemoryRegister.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1693">
-          <caret line="225" column="26" lean-forward="false" selection-start-line="225" selection-start-column="15" selection-end-line="225" selection-end-column="26" />
+        <state relative-caret-position="177">
+          <caret line="111" column="59" lean-forward="false" selection-start-line="111" selection-start-column="59" selection-end-line="111" selection-end-column="59" />
           <folding />
         </state>
       </provider>
@@ -798,7 +797,7 @@
       <state key="ArtifactsStructureConfigurable.UI">
         <settings>
           <artifact-editor />
-          <last-edited>Server:jar</last-edited>
+          <last-edited>Client:jar</last-edited>
           <splitter-proportions>
             <option name="proportions">
               <list>
@@ -851,6 +850,7 @@
             <option name="proportions">
               <list>
                 <option value="0.2" />
+                <option value="0.6" />
               </list>
             </option>
           </splitter-proportions>

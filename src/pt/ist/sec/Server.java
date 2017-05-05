@@ -89,11 +89,11 @@ public class Server implements ServerInterface{
             server = new Server();
             ServerInterface stub = (ServerInterface) UnicastRemoteObject.exportObject(server, 0);
 
-            String ip = InetAddress.getLocalHost().getHostAddress();
+           // String ip = InetAddress.getLocalHost().getHostAddress();
 
             myPort = args[1];
             myRank = Integer.parseInt(args[1]);
-            System.setProperty("java.rmi.server.hostname", ip);
+           //System.setProperty("java.rmi.server.hostname");
             Registry registry = LocateRegistry.createRegistry(Integer.parseInt(args[1]));
             registry.bind(args[1], stub);
 
@@ -109,7 +109,7 @@ public class Server implements ServerInterface{
 
 
 
-            System.err.println("Server ready. Connected in: " + ip + ":" + args[1]);
+           System.err.println("Server ready. Connected in: " + args[1]);
         } catch (Exception e) {
             //e.printStackTrace();
             System.err.println("Couldn't connect to server. Please, restart.");
