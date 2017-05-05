@@ -4,9 +4,6 @@ import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-/**
- * Created by Romeu Viana on 10/03/2017.
- */
 public class ErrorMessage {
     public JPanel panel1;
     private JButton ErrorButton;
@@ -20,6 +17,19 @@ public class ErrorMessage {
             public void actionPerformed(ActionEvent e) {
                 frame.setVisible(false);
                 frame.dispose();
+            }
+        });
+    }
+
+    public ErrorMessage(String str, JFrame frame, boolean end){
+        ErrorMessage em = this;
+        ErrorLabel.setText("Error: " + str);
+        ErrorButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                frame.setVisible(false);
+                frame.dispose();
+                System.exit(0);
             }
         });
     }

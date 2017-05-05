@@ -6,6 +6,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.FileInputStream;
 import java.security.KeyStore;
+import java.util.concurrent.TimeoutException;
 
 public class ClientUI {
     //private static JFrame getFrame = null;
@@ -19,11 +20,18 @@ public class ClientUI {
 
 
     public ClientUI(String port)throws Exception {
-
         final Lib lib = new Lib(Integer.parseInt(port));
-        loadStore(lib);
-
-
+        try {
+            loadStore(lib);
+        }catch (Exception e){
+            frame.setVisible(false);
+            final JFrame frame0 = new JFrame("ErrorMessage");
+            frame0.setContentPane(new ErrorMessage("Could not connect to server!", frame0).panel1
+            );
+            frame0.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame0.pack();
+            frame0.setVisible(true);
+        }
 
         retrievePasswordsButton.addActionListener(new ActionListener() {
             @Override

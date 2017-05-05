@@ -65,7 +65,8 @@ public class Server implements ServerInterface{
     public static ArrayList<Integer> portList = new ArrayList<>();
     public static SharedMemoryRegister reg;
     private static ServerInterface server;
-    public static int totalId = 0; 
+    public static int totalId = 0;
+    public static int myByzantine; //0, functional. 1, constant high timestamp.
 
     public Server(){
 
@@ -75,6 +76,10 @@ public class Server implements ServerInterface{
 
 
         try {
+            myByzantine = Integer.parseInt(args[0]);
+            if(myByzantine > 0) {
+                System.out.println("I'm byzantine type " + myByzantine);
+            }
             reg = new SharedMemoryRegister();
             getMyPublic();
             System.out.println("connecting . . .");
@@ -83,11 +88,11 @@ public class Server implements ServerInterface{
 
             String ip = InetAddress.getLocalHost().getHostAddress();
 
-            myPort = args[0];
-            myRank = Integer.parseInt(args[0]);
+            myPort = args[1];
+            myRank = Integer.parseInt(args[1]);
             System.setProperty("java.rmi.server.hostname", ip);
-            Registry registry = LocateRegistry.createRegistry(Integer.parseInt(args[0]));
-            registry.bind(args[0], stub);
+            Registry registry = LocateRegistry.createRegistry(Integer.parseInt(args[1]));
+            registry.bind(args[1], stub);
 
             connectReplicas(args);
 
@@ -101,10 +106,11 @@ public class Server implements ServerInterface{
 
 
 
-            System.err.println("Server ready. Connected in: " + ip + ":" + args[0]);
+            System.err.println("Server ready. Connected in: " + ip + ":" + args[1]);
         } catch (Exception e) {
-            System.err.println("Server connection error: " + e.toString());
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("Couldn't connect to server. Please, restart the client.");
+            System.out.println("Sugestion: try another server.");
         }
 
         fileCreation(DataFileLoc);
@@ -114,7 +120,7 @@ public class Server implements ServerInterface{
         fileCreation(SignFile);
 
         try {
-            while (true) Thread.sleep(Long.MAX_VALUE);
+            while (true) Thread.sleep(Long.MAX_VALUE); //Sleep forever
         }
         catch(Exception e){
             e.printStackTrace();
@@ -126,15 +132,23 @@ public class Server implements ServerInterface{
         CertificateFactory f = CertificateFactory.getInstance("X.509");
         X509Certificate certificate = (X509Certificate)f.generateCertificate(fin);
         ServerPublicKey = certificate.getPublicKey();
-
     }
 
-    public void registerDeliver(byte[] sessKey, PublicKey pKey, byte[] id)throws Exception{
+    //Adds the propagated client to this replica
+    public void registerDeliver(byte[] sessKey, PublicKey pKey, byte[] id, int port)throws Exception{
         byte[] clientSession = DecryptionAssymmetric(sessKey);
         SecretKey originalKey = new SecretKeySpec(clientSession,"AES");
         byte[] clearId = DecryptionAssymmetric(id);
         addClient(pKey.getEncoded(),originalKey, Integer.parseInt(new String(clearId)));
-        System.out.println("Cliente adicionado com ID: " + Integer.parseInt(new String(clearId)));
+        System.out.println("Client added. ID: " + Integer.parseInt(new String(clearId)));
+        reg.regDeliver(port);
+    }
+
+    public void deliverRegister(){
+        Lock lock = new ReentrantLock();
+        lock.lock();
+        reg.finishRegister();
+        lock.unlock();
     }
 
     public void writeReturn(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int port, int id, byte[] writerSignature, int rid, int rank)throws Exception{
@@ -170,7 +184,10 @@ public class Server implements ServerInterface{
     public void sendValue(int rid, int id, byte[] password, Timestamp ts,byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int wr)throws Exception{
         for(ClientClass c : clientList) {
             if(c.id == id) {
+                Lock lock = new ReentrantLock();
+                lock.lock();
                 c.myReg.plDeliverRead(rid, password, ts, serverSignature,message,signature,nonce,signatureNonce,id, wr);
+                lock.unlock();
             }
         }
     }
@@ -186,26 +203,34 @@ public class Server implements ServerInterface{
     //Updates the port list
     public static void connectReplicas(String[] ports) throws Exception{
 
-        for(int i = 1; i < ports.length; i++){
-            Registry registry = null;
+        for(int i = 2; i < ports.length; i++){
+            try {
+                Registry registry = null;
 
-            String ip = InetAddress.getLocalHost().getHostAddress();
-            registry = LocateRegistry.getRegistry(ip, Integer.parseInt(ports[i]));
+                String ip = InetAddress.getLocalHost().getHostAddress();
+                registry = LocateRegistry.getRegistry(ip, Integer.parseInt(ports[i]));
 
-            server = new Server();
-            UnicastRemoteObject.exportObject(server, 0);
-            ServerInterface stub = (ServerInterface) registry.lookup(ports[i]);
-            portList.add(Integer.parseInt(ports[i]));
+                server = new Server();
+                UnicastRemoteObject.exportObject(server, 0);
+                ServerInterface stub = (ServerInterface) registry.lookup(ports[i]);
+                portList.add(Integer.parseInt(ports[i]));
 
-            stub.registerServer(myPort);
+                stub.registerServer(myPort);
+            } catch(Exception e){
+                System.out.println("Couldn't connect to replica " + ports[i]);
+            }
         }
     }
 
     public void registerServer(String port) throws Exception{
+
+        Lock lock = new ReentrantLock();
+        lock.lock();
         portList.add(Integer.parseInt(port));
+        lock.unlock();
 
     }
-
+    //Stores the digital signatures in a log file for non-repudiation purposes
     private void storageSignture(ClientClass client, byte[] signature){
         Lock lock = new ReentrantLock();
         lock.lock();
@@ -274,10 +299,9 @@ public class Server implements ServerInterface{
         }
         catch(IOException e) {
             System.out.println("File problem: " + e);
-            e.printStackTrace();
         }
     }
-
+    //Stores the password in a file with byte type
     private static void writeByteCode(byte[] code, int index){
         Lock lock = new ReentrantLock();
         lock.lock();
@@ -303,6 +327,7 @@ public class Server implements ServerInterface{
         lock.unlock();
     }
 
+    //Gets the password from the byte file
     private byte[] readByteCode(int index){
 
         try {
@@ -432,6 +457,7 @@ public class Server implements ServerInterface{
         return 1;
     }
 
+    //Stores the information of the client in a file
     public void savePassword(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int id, byte[] writerSignature, int port, int rank)throws Exception{
 
         byte[] pKeyBytes = null;
@@ -489,12 +515,12 @@ public class Server implements ServerInterface{
 
     }
 
-    public  void put(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce , int id) throws Exception{
+    public void put(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce , int id) throws Exception{
 
             for(ClientClass c : clientList) {
                 if(c.id == id) {
                     c.myReg.write(message, signature, nonce, signatureNonce, id);
-                    if(portList.size() == 0){
+                    if(portList.size() == 0){ //in case we only have one server we do not need to call the register
                         savePassword(message,signature,nonce,signatureNonce, c.myReg.wts, id, makeServerDigitalSignature(message), Integer.parseInt(myPort), myRank);
                     }
                 }
@@ -511,7 +537,7 @@ public class Server implements ServerInterface{
         return true;
     }
 
-
+    //Gets the timestamp from file
     public Timestamp getTimetamp(byte[] message,byte[]signature,byte[] nonce,byte[] signatureNonce){
 
         byte[] pKeyBytes = null;
@@ -570,7 +596,14 @@ public class Server implements ServerInterface{
                         if (line.equals(usernameString)){
                             line = br.readLine();
                             line = br.readLine();
-                            return Timestamp.valueOf(line);
+
+                            //Byzantine test 1, high timestamp, from 2020
+                            if(myByzantine != 1) {
+                                return Timestamp.valueOf(line);
+                            }
+                            else{
+                                return Timestamp.valueOf("2020-05-05 03:33:12.738");
+                            }
                         }
                         else{
                             br.readLine();
@@ -608,6 +641,7 @@ public class Server implements ServerInterface{
         return null;
     }
 
+    //Gets the rank from the file (to break ties)
     public int getRank(byte[]message){
 
 
@@ -707,6 +741,7 @@ public class Server implements ServerInterface{
 
     public byte[] getServerSignature(byte[] message){
 
+
         byte[] pKeyBytes = null;
         ClientClass client = clientList.get(0);
         byte[] restMsg = null;
@@ -800,7 +835,7 @@ public class Server implements ServerInterface{
         return null;
     }
 
-
+    //Gets the index corresponding to the last saved new data
     private int getLastNumber(){
 
         int number = -1;
@@ -825,14 +860,11 @@ public class Server implements ServerInterface{
         }
         catch(Exception e){
             e.printStackTrace();
-            return number;      //No caso de não ter nenhum valor
-        }
-
-
+            return number;              }
 
     }
 
-
+    //Remove padding resulting from the communication
     public static String rmPadd(char[] s)throws Exception
     {
         if(s[28] == '0')
@@ -873,7 +905,26 @@ public class Server implements ServerInterface{
         return signature;
     }
 
+    public byte[] concatenateBytes(byte[] password, byte[] ts, byte[] rank) throws Exception{
+        byte[] bytes = null;
+
+        ArrayList<byte[]> list = new ArrayList<>();
+        list.add(password);
+        list.add(ts);
+        list.add(rank);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        for (byte[] element : list) {
+            baos.write(element);
+        }
+        bytes = baos.toByteArray();
+
+        return bytes;
+    }
+
+    //Signs with server's private key
     public static byte[] makeServerDigitalSignature(byte[] bytes) throws Exception {
+
 
         // get a signature object using the SHA-1 and RSA combo
         // and sign the plaintext with the private key
@@ -918,6 +969,7 @@ public class Server implements ServerInterface{
         }
     }
 
+
     public byte[] getDigitalSignature(byte[] PublicKey){
 
         ClientClass client = null;
@@ -942,6 +994,8 @@ public class Server implements ServerInterface{
             return null;
         }
     }
+
+    //Gets the password corresponding to a username and domain combination
     public byte[] retrievePassword(byte[] message, byte[] password){
         ClientClass client = null;
 
@@ -1006,6 +1060,7 @@ public class Server implements ServerInterface{
         return retrievePassword(message, password);
     }
 
+    //Divides the message and returns the password
     public byte[] divideMessage(byte[] message) {
 
         byte[] pKeyBytes = null;
@@ -1028,6 +1083,7 @@ public class Server implements ServerInterface{
         return copyOfRange(restMsg, 60, restMsg.length);
     }
 
+    //Gets the password from the byte file
     public byte[] getPass( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id, int port){
 
         byte[] pKeyBytes = null;
@@ -1070,8 +1126,6 @@ public class Server implements ServerInterface{
 
         }
         catch(Exception e){
-            System.err.println("(Retrieve)Signature error: " + e.toString());
-            e.printStackTrace();
         }
 
         try {
@@ -1162,11 +1216,19 @@ public class Server implements ServerInterface{
 
 
         //pass the session key to client
-        // FALTA DIGITAL SIGNATURE!!!!!!!!!!!!!!!!!!!!!!!!!!
-        c.setSessionKey(EncryptionAssymmetric(SessKey.getEncoded(),realClientPubKey),EncryptionAssymmetric(Integer.toString(id).getBytes(),realClientPubKey));
+        c.setSessionKey(EncryptionAssymmetric(SessKey.getEncoded(),realClientPubKey),
+                makeServerDigitalSignature(SessKey.getEncoded()),
+                EncryptionAssymmetric(Integer.toString(id).getBytes(),realClientPubKey),
+                makeServerDigitalSignature((""+id).getBytes())
+                );
 
+        System.out.println("Client added. ID: " + id);
 
-        reg.broadcastRegister(EncryptionAssymmetric(SessKey.getEncoded(), ServerPublicKey), realClientPubKey, EncryptionAssymmetric(Integer.toString(id).getBytes(),ServerPublicKey));
+        Lock lock2 = new ReentrantLock();
+        lock2.lock();
+        if(portList.size()>0)reg.broadcastRegister(EncryptionAssymmetric(SessKey.getEncoded(), ServerPublicKey), realClientPubKey, EncryptionAssymmetric(Integer.toString(id).getBytes(),ServerPublicKey), Integer.parseInt(myPort));
+        lock2.unlock();
+
     }
 
 

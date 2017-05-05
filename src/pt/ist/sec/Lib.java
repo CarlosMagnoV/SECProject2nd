@@ -89,7 +89,6 @@ public class Lib implements ClientInterface{
         }
         catch(Exception e){
             System.err.println("Client connection error: " + e.toString());
-            e.printStackTrace();
             exit(0);
         }
     }
@@ -167,11 +166,17 @@ public class Lib implements ClientInterface{
         registerUser();
     }
 
-    public void setSessionKey(byte[] SessKey, byte[] id)throws Exception{
+    public void setSessionKey(byte[] SessKey, byte[] keySignature, byte[] id, byte[] idSignature)throws Exception{
+
         byte[] SessBytes = DecryptionAssymmetric(SessKey);
-        this.SessionKey = new SecretKeySpec(SessBytes,"AES");
         byte[] clearId = DecryptionAssymmetric(id);
-        this.myId = Integer.parseInt(new String(clearId));
+        //String strID = new String(clearId);
+
+        if(verifyDigitalSignature(keySignature, SessBytes, ServerPublicKey) && verifyDigitalSignature(idSignature, clearId, ServerPublicKey)) {
+            this.SessionKey = new SecretKeySpec(SessBytes, "AES");
+            this.myId = Integer.parseInt(new String(clearId));
+        }
+
     }
 
 
@@ -182,7 +187,6 @@ public class Lib implements ClientInterface{
 
     public void registerUser() throws Exception
     {
-
         stub.register(ClientPublicKey.getEncoded(),(ClientInterface)this);
         System.out.println("I am ID: "+ myId);
 

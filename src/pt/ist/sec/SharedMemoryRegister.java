@@ -11,6 +11,8 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -27,6 +29,14 @@ public class SharedMemoryRegister extends Server {
     public int acks;
     private byte[] writerSignature;
     public boolean reading;
+    public int regACK;
+    public boolean regLock;
+    public boolean readLock;
+    public Semaphore readingSemaphore = new Semaphore(0,true);
+    public Semaphore registerSemaphore = new Semaphore(0,true);
+    private int cId;
+    private boolean registerFlag = false;
+    private int count=0;
 
     public SharedMemoryRegister() {
 
@@ -36,30 +46,54 @@ public class SharedMemoryRegister extends Server {
         value = null;
         writerSignature = null;
         reading = false;
+        regACK = 0;
+        regLock = false;
+        readLock = false;
+
 
     }
-
+    //This method is called when a client invokes a send password operation (writes register)
     public void write(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id) throws Exception {
-        wts = new Timestamp(System.currentTimeMillis());
+        //Byzantine test 1, high timestamp, from 2020
+        if(myByzantine!=1) {
+            wts = new Timestamp(System.currentTimeMillis());
+        }
+        else{
+            wts = Timestamp.valueOf("2020-05-05 03:33:12.738");
+        }
         acks = 1;
         rid++;
-        byte[] pass = divideMessage(message);
-        writerSignature = makeServerDigitalSignature(pass);
+        byte[] pass = divideMessage(message); //gets the password from the message
+        byte[] signedPassTsRank = concatenateBytes(pass, ("" + wts).getBytes(), ("" + myRank).getBytes());    //Join pass, timestamp and rank for signing
+        writerSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
         readList = new ArrayList<>();
-        readList.add(new ReadListReplicas(pass, wts, writerSignature, message, signature, nonce, signatureNonce, id, myRank));
-        bebBroadcastRead(message, signature, nonce, signatureNonce,rid, Integer.parseInt(myPort), id);
-    }
 
+        if(wts.before(new Timestamp(System.currentTimeMillis())) || wts.equals(new Timestamp(System.currentTimeMillis()))) {
+            readList.add(new ReadListReplicas(pass, wts, writerSignature, message, signature, nonce, signatureNonce, id, myRank));//puts itself in the readlist, to simulate broadcast to itself
+        }
+
+        bebBroadcastRead(message, signature, nonce, signatureNonce,rid, Integer.parseInt(myPort), id); //broadcast read operation to all other replicas
+    }
+    //This method broadcasts write asynchronously to all other replicas
     public void bebBroadcastWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp wts, int id, byte[] writerSignature, int rank){
         try{
             for (int p : portList) {
-                getReplica(p).writeReturn(message, signature, nonce, signatureNonce, wts, Integer.parseInt(super.myPort), id, writerSignature, rid, rank);
+                Runnable task = () -> {
+                    try {
+                        getReplica(p).writeReturn(message, signature, nonce, signatureNonce, wts, Integer.parseInt(super.myPort), id, writerSignature, rid, rank);
+                    }
+                    catch(Exception e){}
+            };
+
+            Thread thread = new Thread(task);
+            thread.start();
+
             }
         }catch (Exception e){
-            e.printStackTrace();
+            //e.printStackTrace();
         }
     }
-
+    //This method writes in the replicas file and sends ack to the writer/reader
     public void bebDeliverWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int port, int id, byte[] writerSignature, int rid, int rank)throws Exception{
         Lock lock = new ReentrantLock();
         lock.lock();
@@ -81,16 +115,17 @@ public class SharedMemoryRegister extends Server {
             getReplica(port).ackReturn(message, signature, nonce, signatureNonce, ts, port, id,rid);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            //e.printStackTrace();
         }
     }
+    //This method delivers the write operation
     public void plDeliverWrite(byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, Timestamp ts, int port, int id,int rid) throws Exception
     {
         if(this.rid==rid) {
 
             acks++;
             if (acks > Math.ceil((int) (portList.size() + 1) / 2)) {
-                acks = 1;
+                acks = 0;
                 if (reading) {
                     reading = false;
                 } else {
@@ -102,66 +137,104 @@ public class SharedMemoryRegister extends Server {
         }
 
     }
-
+    //This method is invoked when a client tries to retrieve a password (reads register)
     public void read( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int port, int id){
         rid++;
         acks=1;
         reading=true;
         readList = new ArrayList<>();
         value = null;
-        byte[]readerPassword = getPass(message,signature,nonce,signatureNonce, id, port); //Para adicionar o seu valor da password na readlist para efeitos de posterior comparação
+
+        //gets all information from own file
+        byte[]readerPassword = getPass(message,signature,nonce,signatureNonce, id, port);
         Timestamp ts = getTimetamp(message,signature,nonce,signatureNonce);
         writerSignature = getServerSignature(message);
-
         byte[] serverSignature = getServerSignature(message);
         ReadListReplicas value = new ReadListReplicas(readerPassword, ts, serverSignature,message,signature,nonce,signatureNonce,id, getRank(message));
-        readList.add(value);
-        bebBroadcastRead(message, signature, nonce, signatureNonce,rid, port, id);
+        readList.add(value);//puts itself in the readlist, to simulate broadcast to itself
+
+        bebBroadcastRead(message, signature, nonce, signatureNonce,rid, port, id); //broadcasts to all other replicas
     }
 
+    //This method broadcasts read asynchronously to all other replicas
     public void bebBroadcastRead( byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int rid, int port, int id){
         try{
             for (int p : portList) {
-                getReplica(p).readReturn(message,signature,nonce,signatureNonce,rid, port, id);
+                Runnable task = () -> {
+                    try {
+                        getReplica(p).readReturn(message, signature, nonce, signatureNonce, rid, port, id);
+                    } catch (Exception e) {
+                    }
+                    count++;
+                };
+
+                Thread thread = new Thread(task);
+                thread.start();
             }
+
+                readingSemaphore.acquire();
+
+
+
+
         }catch (Exception e){
            // e.printStackTrace();
         }
     }
-
+    //Sends each replicas value (in the file) to the reader
     public void bebDeliverRead( byte[] password, Timestamp ts, int rid, int port, int id, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int wr)throws Exception{
 
-        getReplica(port).sendValue(rid, id, password, ts, serverSignature,message,signature,nonce,signatureNonce,wr);
+        try {
+            getReplica(port).sendValue(rid, id, password, ts, serverSignature, message, signature, nonce, signatureNonce, wr);
+        } catch (Exception e){}
     }
+
 
     public void plDeliverRead(int rid, byte[] password, Timestamp ts, byte[] serverSignature,byte[] message, byte[] signature, byte[] nonce, byte[] signatureNonce, int id, int wr)throws Exception{
         if(this.rid == rid) {
             boolean sign = false;
             boolean equalSign = false;
+            boolean possibleTs = false;
             try {
+
+
+                //Prevents errors while writing & checks signatures
                 if(reading){
-                    sign = verifyServerDigitalSignature(serverSignature, password);
+                    byte[] signedPassTsRank = concatenateBytes(password, (""+ts).getBytes(), (""+wr).getBytes());
+                    sign = verifyServerDigitalSignature(serverSignature, signedPassTsRank);
                     equalSign = printBase64Binary(serverSignature).equals(printBase64Binary(readList.get(0).serverSignature));
+                    possibleTs = ts.before(new Timestamp(System.currentTimeMillis()));
                 }
-                else{sign = true; equalSign = true;}
+                else{
+                    sign = true;
+                    equalSign = true;
+                    if(ts != null){
+                        possibleTs = ts.before(new Timestamp(System.currentTimeMillis()));
+                    }
+                    else{possibleTs = true;}
+                }
             }
             catch (Exception e){
                 reading = false;
-                return;  //Caso seja escrita, não existe ainda assinatura
+                return;
             }
-            if (sign){
+            if (sign && possibleTs){
                 if (equalSign || !reading) {
                     Lock lock = new ReentrantLock();
                     lock.lock();
                     ReadListReplicas newValue = new ReadListReplicas(password, ts, serverSignature,message,signature,nonce,signatureNonce,id,wr);
                     readList.add(newValue);
-                    lock.unlock();
+
+                    //Sufficient number of replicas
                     if (readList.size() > Math.ceil((int) (portList.size() + 1) / 2)) {
 
+                        //Attributes the first value to the max value, ts and rank
                         Timestamp currentTs = readList.get(0).ts;
                         int rank = readList.get(0).rank;
                         int index = 0;
                         int indexMax = 0;
+
+                        //Check what is the max ts & rank, saving the value
                         for (ReadListReplicas auxVal : readList) {
                             try {
                                 if (currentTs.equals(auxVal.ts) && rank >= auxVal.rank) {
@@ -180,7 +253,8 @@ public class SharedMemoryRegister extends Server {
                         }
                         this.value = readList.get(indexMax);
                         readList = new ArrayList<>();
-
+                        lock.unlock();
+                        //Saves the highest values while reading, according to the atomic algorithm
                         if(reading) {
                             if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
                                 if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
@@ -192,8 +266,17 @@ public class SharedMemoryRegister extends Server {
                             }
                             bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, this.value.ts, this.value.id, this.value.serverSignature, this.value.rank);
                         }
+                        //Simply writes the values in every replica
                         else{
+
+                            //Defines the signature
                             Timestamp newTs = new Timestamp(System.currentTimeMillis());
+                            byte[] pass = divideMessage(message); //gets the password from the message
+                            byte[] signedPassTsRank = concatenateBytes(pass, ("" + newTs).getBytes(), ("" + myRank).getBytes());    //Join pass, timestamp and rank for signing
+                            this.value.serverSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
+                            writerSignature = makeServerDigitalSignature(signedPassTsRank);//signs the password, ts and rank to prevent byzantine modifications
+
+
                             if (getTimetamp(message, signature, nonce, signatureNonce) != null) {
                                 if (value.ts.after(getTimetamp(message, signature, nonce, signatureNonce))) {
                                     savePassword(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs, this.value.id, this.value.serverSignature, Integer.parseInt(myPort), myRank);
@@ -203,13 +286,13 @@ public class SharedMemoryRegister extends Server {
                             bebBroadcastWrite(this.value.message, this.value.signature, this.value.nonce, this.value.signatureNonce, newTs , this.value.id, this.value.serverSignature, myRank);
 
                         }
-
+                        readingSemaphore.release();   //Unlocks the main thread, since values are already avaliable to be retrieved
                     }
                 }
             }
         }
     }
-
+    //This method created a remote object in a server specified by port
     public ServerInterface getReplica(int port) throws Exception {
         Registry registry = null;
         String ip = InetAddress.getLocalHost().getHostAddress();
@@ -220,11 +303,63 @@ public class SharedMemoryRegister extends Server {
 
 
 
-
-    public void broadcastRegister(byte[] sess, PublicKey pubK, byte[] id) throws Exception {
+    //This method propagates the client register operation to all other replicas
+    public void broadcastRegister(byte[] sess, PublicKey pubK, byte[] id, int port) throws Exception {
+        cId = Integer.parseInt(new String(DecryptionAssymmetric(id),"ASCII"));
+        regACK++;
+        //unlockServer(Integer.parseInt(new String(DecryptionAssymmetric(id),"ASCII")));
         for (int p : portList) {
 
-            getReplica(p).registerDeliver(sess, pubK, id);
+            Runnable task = () -> {
+                try {
+
+                    getReplica(p).registerDeliver(sess, pubK, id, port);
+                }
+                catch(Exception e){}
+            };
+
+            Thread thread = new Thread(task);
+            thread.start();
+        }
+        registerSemaphore.acquire(); //locks main thread and waits for a sufficient replica's return
+        cId = 0;
+        if(registerFlag){
+            registerFlag = false;
+            throw new Exception();
+        }
+
+    }
+/*
+    public void unlockServer(int id){
+        Runnable task = () -> {
+            try {
+                Thread.sleep(500);
+                if(cId == id){
+                    registerFlag = true;
+                    registerSemaphore.release(); //locks main thread and waits for a sufficient replica's return
+                    regACK = 1;
+                }
+            }
+            catch(Exception e){}
+        };
+
+    }
+    */
+
+
+    public void regDeliver(int port) throws Exception{
+        try {
+            getReplica(port).deliverRegister();
+        }
+        catch(Exception e){}
+    }
+    //collects client registration acks
+    public void finishRegister(){
+        regACK++;
+        if (regACK > Math.ceil((int) (portList.size() + 1) / 2)) {
+            regACK = 0;
+            System.out.println("unlocked reg");
+            registerSemaphore.release();// we have a sufficient number of acks so we release the main thread
         }
     }
 }

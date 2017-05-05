@@ -10,6 +10,5 @@ import java.security.PublicKey;
 public interface ClientInterface extends Remote {
     void save_password(byte[] message) throws Exception;
     byte[] retrieve_password(byte[] message) throws Exception;
-    void setSessionKey(byte[] SessKey, byte[] id)throws Exception;
-    byte[] getNonce() throws Exception;
+    void setSessionKey(byte[] SessKey, byte[] keySignature, byte[] id, byte[] idSignature)throws Exception;
 }
